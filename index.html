@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dice of Fate</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="game">
+
+  <!-- ── LEFT: main panel ────────────────────────── -->
+  <div class="main-panel">
+
+    <div class="header">
+      <h1>⚄ DICE OF FATE</h1>
+      <p class="subtitle">Roll. Discover. Ascend.</p>
+    </div>
+
+    <!-- stat bar -->
+    <div class="coin-bar">
+      <div>
+        <div class="coin-bar-label">COINS</div>
+        <div class="coin-val" id="coins">0</div>
+      </div>
+      <div class="coin-bar-divider"></div>
+      <div class="coin-bar-stat">
+        <div class="coin-bar-label">TOTAL ROLLS</div>
+        <div class="coin-bar-value" id="total-rolls">0</div>
+      </div>
+      <div class="coin-bar-divider"></div>
+      <div class="coin-bar-stat">
+        <div class="coin-bar-label">BEST RARITY</div>
+        <div class="coin-bar-value" id="best-rarity">—</div>
+      </div>
+      <div class="coin-bar-divider"></div>
+      <div class="coin-bar-stat">
+        <div class="coin-bar-label">LIFETIME</div>
+        <div class="coin-bar-value gold" id="lifetime-coins">0</div>
+      </div>
+    </div>
+
+    <!-- dice arena -->
+    <div class="dice-arena">
+      <svg id="dice" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="dg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%"   stop-color="#2a2a4a"/>
+            <stop offset="100%" stop-color="#1a1a2e"/>
+          </linearGradient>
+        </defs>
+        <rect x="5" y="5" width="90" height="90" rx="18"
+              fill="url(#dg)" stroke="#f5c842" stroke-width="2"/>
+        <circle cx="30" cy="30" r="7" fill="#f5c842"/>
+        <circle cx="70" cy="30" r="7" fill="#f5c842"/>
+        <circle cx="50" cy="50" r="7" fill="#f5c842"/>
+        <circle cx="30" cy="70" r="7" fill="#f5c842"/>
+        <circle cx="70" cy="70" r="7" fill="#f5c842"/>
+      </svg>
+
+      <div class="combo-display" id="combo-display" style="display:none">
+        Streak: <span id="streak-num">0</span>x combo!
+        <div class="streak-bar">
+          <div class="streak-fill" id="streak-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <button class="roll-btn" id="roll-btn" onclick="doRoll()">🎲 ROLL THE DICE</button>
+      <div id="auto-info"></div>
+    </div>
+
+    <!-- result -->
+    <div class="result-display" id="result-display">
+      <div class="result-placeholder">Click the dice or press the button to roll…</div>
+    </div>
+
+    <!-- recent rolls -->
+    <div class="history">
+      <h3>Recent Rolls</h3>
+      <div class="history-list" id="history-list"></div>
+    </div>
+
+  </div><!-- /main-panel -->
+
+  <!-- ── RIGHT: side panel ───────────────────────── -->
+  <div class="side-panel">
+    <div class="panel-box">
+
+      <div class="tabs">
+        <div class="tab active"  onclick="switchTab('rarities')">Rarities</div>
+        <div class="tab"         onclick="switchTab('shop')">Shop</div>
+        <div class="tab"         onclick="switchTab('collection')">Codex</div>
+      </div>
+
+      <!-- rarities tab -->
+      <div id="tab-rarities" class="tab-content active">
+        <table class="rarity-table" id="rarity-table"></table>
+      </div>
+
+      <!-- shop tab -->
+      <div id="tab-shop" class="tab-content">
+        <div class="shop-grid" id="shop-grid"></div>
+      </div>
+
+      <!-- collection tab -->
+      <div id="tab-collection" class="tab-content">
+        <div id="coll-progress">Discovered: 0 / 0</div>
+        <div class="collections-grid" id="collection-grid"></div>
+      </div>
+
+    </div>
+  </div><!-- /side-panel -->
+
+</div><!-- /game -->
+
+<script src="script.js"></script>
+</body>
+</html>
