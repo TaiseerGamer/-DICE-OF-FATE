@@ -1,14 +1,17 @@
+const VERSION = 'v0.0.1';
+
 const RARITIES = [
-  { id: 'common',       name: 'Common',       color: '#9999aa', chance: 45,   coins: 2,     emoji: '⚪' },
-  { id: 'uncommon',     name: 'Uncommon',     color: '#4caf50', chance: 25,   coins: 8,     emoji: '🟢' },
-  { id: 'rare',         name: 'Rare',         color: '#2196f3', chance: 13,   coins: 22,    emoji: '🔵' },
-  { id: 'epic',         name: 'Epic',         color: '#9c27b0', chance: 8,    coins: 60,    emoji: '🟣' },
-  { id: 'legendary',    name: 'Legendary',    color: '#ff9800', chance: 4,    coins: 175,   emoji: '🟡' },
-  { id: 'mythic',       name: 'Mythic',       color: '#f44336', chance: 2.5,  coins: 400,   emoji: '🔴' },
-  { id: 'divine',       name: 'Divine',       color: '#00bcd4', chance: 1.5,  coins: 1000,  emoji: '💠' },
-  { id: 'cosmic',       name: 'Cosmic',       color: '#e91e63', chance: 0.7,  coins: 2800,  emoji: '🌸' },
-  { id: 'void',         name: 'Void',         color: '#673ab7', chance: 0.28, coins: 7500,  emoji: '💜' },
-  { id: 'transcendent', name: 'Transcendent', color: '#f5c842', chance: 0.02, coins: 25000, emoji: '⭐' },
+  { id: 'common',       name: 'Common',       color: '#9999aa', chance: 44,   coins: 2,      emoji: '⚪' },
+  { id: 'uncommon',     name: 'Uncommon',     color: '#4caf50', chance: 25,   coins: 8,      emoji: '🟢' },
+  { id: 'rare',         name: 'Rare',         color: '#2196f3', chance: 13,   coins: 22,     emoji: '🔵' },
+  { id: 'epic',         name: 'Epic',         color: '#9c27b0', chance: 8,    coins: 65,     emoji: '🟣' },
+  { id: 'legendary',    name: 'Legendary',    color: '#ff9800', chance: 4,    coins: 190,    emoji: '🟡' },
+  { id: 'mythic',       name: 'Mythic',       color: '#f44336', chance: 2.5,  coins: 420,    emoji: '🔴' },
+  { id: 'divine',       name: 'Divine',       color: '#00bcd4', chance: 1.5,  coins: 1100,   emoji: '💠' },
+  { id: 'cosmic',       name: 'Cosmic',       color: '#e91e63', chance: 0.7,  coins: 3000,   emoji: '🌸' },
+  { id: 'void',         name: 'Void',         color: '#673ab7', chance: 0.28, coins: 8000,   emoji: '💜' },
+  { id: 'abyssal',      name: 'Abyssal',      color: '#1de9b6', chance: 0.01, coins: 50000,  emoji: '🌊' },
+  { id: 'transcendent', name: 'Transcendent', color: '#f5c842', chance: 0.01, coins: 100000, emoji: '⭐' },
 ];
 
 const ELEMENTS = [
@@ -22,6 +25,8 @@ const ELEMENTS = [
   { name: 'Blood',   emoji: '🩸' }, { name: 'Spirit',  emoji: '👻' },
   { name: 'Crystal', emoji: '💎' }, { name: 'Poison',  emoji: '☠️' },
   { name: 'Aether',  emoji: '🌟' }, { name: 'Gravity', emoji: '🪐' },
+  { name: 'Plague',  emoji: '🤢' }, { name: 'Arcane',  emoji: '🔯' },
+  { name: 'Storm',   emoji: '🌩️' },
 ];
 
 const ITEMS = [
@@ -37,12 +42,16 @@ const ITEMS = [
   { name: 'Cosmic Dust',     emoji: '✨' }, { name: 'Reality Shard',  emoji: '🌌' },
   { name: 'Infinity Loop',   emoji: '♾️' }, { name: 'Time Crystal',   emoji: '⏳' },
   { name: 'Aether Bloom',    emoji: '🌸' }, { name: 'Gravity Well',   emoji: '🪐' },
+  { name: 'Plague Flask',   emoji: '🧪' }, { name: 'Storm Eye',      emoji: '🌩️' },
+  { name: 'Abyss Pearl',    emoji: '🔮' }, { name: 'Runic Tablet',   emoji: '🪨' },
+  { name: 'Cursed Mirror',  emoji: '🪞' }, { name: 'Shadow Crown',   emoji: '👑' },
 ];
 
 const BONUSES = [
   'Empowered','Ancient','Cursed','Blessed','Radiant','Decaying',
   'Eternal','Fragmented','Ascended','Doomed','Reborn','Spectral',
-  'Primal','Shattered','Exalted'
+  'Primal','Shattered','Exalted','Forsaken','Hallowed','Abyssal',
+  'Runic','Infernal',
 ];
 
 const UPGRADES = [
@@ -55,7 +64,9 @@ const UPGRADES = [
   { id: 'streak',   name: 'Hot Streak',     desc: 'Consecutive rolls bonus',      effect: 'streak',    levels: 3, baseCost: 200,   costMult: 3,   color: '#00bcd4' },
   { id: 'jackpot',  name: 'Jackpot Chance', desc: '5% chance to 10x coins',       effect: 'jackpot',   levels: 3, baseCost: 500,   costMult: 4,   color: '#e91e63' },
   { id: 'coinIII',  name: 'Gold Rush',      desc: 'All coins earned +100%',       effect: 'coinMult3', levels: 3, baseCost: 5000,  costMult: 5,   color: '#f5c842' },
-  { id: 'voidSense',name: 'Void Sense',     desc: 'Void+ chance greatly up',      effect: 'luck4',     levels: 1, baseCost: 15000, costMult: 10,  color: '#673ab7' },
+  { id: 'voidSense',   name: 'Void Sense',      desc: 'Void+ chance greatly up',      effect: 'luck4',    levels: 1, baseCost: 15000, costMult: 10, color: '#673ab7' },
+  { id: 'bonusProc',  name: 'Prefix Mastery',  desc: 'Bonus prefix chance +20%',     effect: 'bonusProc',levels: 3, baseCost: 150,   costMult: 3,  color: '#e8a020' },
+  { id: 'abyssal',    name: 'Abyssal Seeker',  desc: 'Abyssal rarity chance up',     effect: 'luck5',    levels: 2, baseCost: 40000, costMult: 12, color: '#1de9b6' },
 ];
 
 const G = {
@@ -95,6 +106,8 @@ function getChances() {
   if (l2 > 0) { for (let i = 4; i < c.length; i++) c[i].chance *= (1 + l2 * 1); }
   if (l3 > 0) { for (let i = 5; i < c.length; i++) c[i].chance *= (1 + l3 * 2); }
   if (l4 > 0) { for (let i = 8; i < c.length; i++) c[i].chance *= 5; }
+  const l5 = getUpgradeLevel('abyssal');
+  if (l5 > 0) { for (let i = 9; i < c.length; i++) c[i].chance *= (1 + l5 * 3); }
 
   const total = c.reduce((s, r) => s + r.chance, 0);
   c.forEach(r => r.chance = (r.chance / total) * 100);
@@ -177,7 +190,8 @@ function finishRoll() {
   const rarity  = RARITIES[ri];
   const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
   const item    = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-  const bonus   = Math.random() < 0.3 ? BONUSES[Math.floor(Math.random() * BONUSES.length)] : null;
+  const bonusChance = 0.3 + getUpgradeLevel('bonusProc') * 0.2;
+  const bonus   = Math.random() < bonusChance ? BONUSES[Math.floor(Math.random() * BONUSES.length)] : null;
 
   G.streak++;
 
@@ -261,10 +275,16 @@ function updateHistory() {
   document.getElementById('history-list').innerHTML =
     G.history.slice(0, 20).map(h =>
       `<span class="hist-item"
-             style="color:${h.rarity.color};border-color:${h.rarity.color}40;background:${h.rarity.color}15">
+             style="color:${h.rarity.color};border-color:${h.rarity.color}40;background:${h.rarity.color}15"
+             title="${h.rarity.name} ${h.item.name}">
          ${h.item.emoji}
        </span>`
     ).join('');
+
+  const avg = document.getElementById('avg-coins');
+  if (G.totalRolls > 0 && avg) {
+    avg.textContent = `avg ${Math.round(G.lifetimeCoins / G.totalRolls).toLocaleString()} 🪙/roll`;
+  }
 }
 
 function updateRarityTable() {
