@@ -1,4 +1,4 @@
-const VERSION = 'v0.0.1';
+const VERSION = 'v0.1.0';
 
 const RARITIES = [
   { id: 'common',       name: 'Common',       color: '#9999aa', chance: 44,   coins: 2,      emoji: '⚪' },
@@ -64,9 +64,11 @@ const UPGRADES = [
   { id: 'streak',   name: 'Hot Streak',     desc: 'Consecutive rolls bonus',      effect: 'streak',    levels: 3, baseCost: 200,   costMult: 3,   color: '#00bcd4' },
   { id: 'jackpot',  name: 'Jackpot Chance', desc: '5% chance to 10x coins',       effect: 'jackpot',   levels: 3, baseCost: 500,   costMult: 4,   color: '#e91e63' },
   { id: 'coinIII',  name: 'Gold Rush',      desc: 'All coins earned +100%',       effect: 'coinMult3', levels: 3, baseCost: 5000,  costMult: 5,   color: '#f5c842' },
-  { id: 'voidSense',   name: 'Void Sense',      desc: 'Void+ chance greatly up',      effect: 'luck4',    levels: 1, baseCost: 15000, costMult: 10, color: '#673ab7' },
-  { id: 'bonusProc',  name: 'Prefix Mastery',  desc: 'Bonus prefix chance +20%',     effect: 'bonusProc',levels: 3, baseCost: 150,   costMult: 3,  color: '#e8a020' },
-  { id: 'abyssal',    name: 'Abyssal Seeker',  desc: 'Abyssal rarity chance up',     effect: 'luck5',    levels: 2, baseCost: 40000, costMult: 12, color: '#1de9b6' },
+  { id: 'voidSense',   name: 'Void Sense',        desc: 'Void+ chance greatly up',         effect: 'luck4',      levels: 1, baseCost: 15000, costMult: 10, color: '#673ab7' },
+  { id: 'bonusProc',  name: 'Prefix Mastery',    desc: 'Bonus prefix chance +20%',        effect: 'bonusProc',  levels: 3, baseCost: 150,   costMult: 3,  color: '#e8a020' },
+  { id: 'abyssal',    name: 'Abyssal Seeker',    desc: 'Abyssal rarity chance up',        effect: 'luck5',      levels: 2, baseCost: 40000, costMult: 12, color: '#1de9b6' },
+  { id: 'doubleOrNth',name: 'Double or Nothing', desc: '10% chance: 2x coins OR 0',       effect: 'doubleOrNth',levels: 3, baseCost: 800,   costMult: 4,  color: '#ff5252' },
+  { id: 'pity',       name: 'Pity System',       desc: 'After 50 dry rolls, +luck surge', effect: 'pity',       levels: 3, baseCost: 1200,  costMult: 3,  color: '#ce93d8' },
 ];
 
 const G = {
@@ -79,7 +81,25 @@ const G = {
   streak: 0,
   bestRarityIdx: -1,
   autoTimer: null,
+  dryStreak: 0,
+  lastDailyBonus: null,
+  soundEnabled: true,
+  milestones: {},
 };
+
+const MILESTONES = [
+  { id: 'rolls10',    label: '10 Rolls',         check: g => g.totalRolls >= 10,       reward: 50,    icon: '🎲' },
+  { id: 'rolls100',   label: '100 Rolls',        check: g => g.totalRolls >= 100,      reward: 500,   icon: '🎲' },
+  { id: 'rolls1000',  label: '1,000 Rolls',      check: g => g.totalRolls >= 1000,     reward: 5000,  icon: '🎲' },
+  { id: 'coins1k',    label: 'Earn 1K Coins',    check: g => g.lifetimeCoins >= 1000,  reward: 100,   icon: '🪙' },
+  { id: 'coins100k',  label: 'Earn 100K Coins',  check: g => g.lifetimeCoins >= 100000,reward: 2000,  icon: '🪙' },
+  { id: 'firstLeg',   label: 'First Legendary',  check: g => g.bestRarityIdx >= 4,     reward: 300,   icon: '🟡' },
+  { id: 'firstDiv',   label: 'First Divine',     check: g => g.bestRarityIdx >= 6,     reward: 2000,  icon: '💠' },
+  { id: 'firstVoid',  label: 'First Void',       check: g => g.bestRarityIdx >= 8,     reward: 10000, icon: '💜' },
+  { id: 'firstAbyss', label: 'First Abyssal',    check: g => g.bestRarityIdx >= 9,     reward: 40000, icon: '🌊' },
+  { id: 'codex10',    label: 'Codex: 10 Items',  check: g => Object.keys(g.collection).length >= 10, reward: 200, icon: '📖' },
+  { id: 'codexAll',   label: 'Codex: All Items', check: g => Object.keys(g.collection).length >= ITEMS.length, reward: 25000, icon: '📖' },
+];
 
 /* ── helpers ─────────────────────────────────────── */
 
@@ -108,6 +128,13 @@ function getChances() {
   if (l4 > 0) { for (let i = 8; i < c.length; i++) c[i].chance *= 5; }
   const l5 = getUpgradeLevel('abyssal');
   if (l5 > 0) { for (let i = 9; i < c.length; i++) c[i].chance *= (1 + l5 * 3); }
+
+  // Pity system: after 50 dry rolls (no epic+), boost chances
+  const pityLvl = getUpgradeLevel('pity');
+  if (pityLvl > 0 && G.dryStreak >= 50) {
+    const boost = 1 + (G.dryStreak - 50) * 0.02 * pityLvl;
+    for (let i = 3; i < c.length; i++) c[i].chance *= boost;
+  }
 
   const total = c.reduce((s, r) => s + r.chance, 0);
   c.forEach(r => r.chance = (r.chance / total) * 100);
@@ -195,8 +222,21 @@ function finishRoll() {
 
   G.streak++;
 
+  // Pity: reset dry streak if epic or better
+  if (ri >= 3) { G.dryStreak = 0; } else { G.dryStreak++; }
+
   const isJackpot = getUpgradeLevel('jackpot') > 0 && Math.random() < 0.05 * getUpgradeLevel('jackpot');
-  const coins = Math.round(rarity.coins * getCoinMult() * getStreakBonus() * (isJackpot ? 10 : 1));
+
+  // Double-or-Nothing
+  let donResult = null;
+  const donLvl = getUpgradeLevel('doubleOrNth');
+  if (donLvl > 0 && Math.random() < 0.10) {
+    donResult = Math.random() < 0.5 ? 'double' : 'zero';
+  }
+
+  let coins = Math.round(rarity.coins * getCoinMult() * getStreakBonus() * (isJackpot ? 10 : 1));
+  if (donResult === 'double') coins *= 2;
+  if (donResult === 'zero')   coins  = 0;
 
   G.coins        += coins;
   G.lifetimeCoins+= coins;
@@ -206,29 +246,37 @@ function finishRoll() {
   const key = item.emoji + '|' + rarity.id;
   G.collection[key] = (G.collection[key] || 0) + 1;
 
-  const h = { rarity, element, item, bonus, coins, isJackpot };
+  const h = { rarity, element, item, bonus, coins, isJackpot, donResult };
   G.history.unshift(h);
   if (G.history.length > 30) G.history.pop();
 
+  checkMilestones();
   showResult(h);
   updateUI();
   updateHistory();
   updateShop();
   updateCollection();
-  spawnFloatingCoin(coins, isJackpot);
+  spawnFloatingCoin(coins, isJackpot, donResult);
+  saveGame();
 }
 
 /* ── display ─────────────────────────────────────── */
 
 function showResult(h) {
-  const { rarity, element, item, bonus, coins, isJackpot } = h;
+  const { rarity, element, item, bonus, coins, isJackpot, donResult } = h;
   const bname = bonus ? `${bonus} ` : '';
 
   const multi = [];
   const cm = getCoinMult();
-  if (cm > 1)             multi.push(`x${cm.toFixed(1)} coin boost`);
-  if (getStreakBonus()>1) multi.push(`x${getStreakBonus().toFixed(2)} streak`);
-  if (isJackpot)          multi.push('💥 JACKPOT x10!');
+  if (cm > 1)              multi.push(`x${cm.toFixed(1)} coin boost`);
+  if (getStreakBonus()>1)  multi.push(`x${getStreakBonus().toFixed(2)} streak`);
+  if (isJackpot)           multi.push('💥 JACKPOT x10!');
+  if (donResult==='double')multi.push('🎰 DOUBLE!');
+  if (donResult==='zero')  multi.push('💀 NOTHING!');
+
+  // Flash overlay for Legendary+
+  const ri = RARITIES.findIndex(r => r.id === rarity.id);
+  if (ri >= 4) flashScreen(rarity.color);
 
   document.getElementById('result-display').innerHTML =
     `<div class="result-card" style="border-color:${rarity.color}40;box-shadow:0 0 20px ${rarity.color}20">
@@ -238,7 +286,7 @@ function showResult(h) {
        </div>
        <div class="rarity-name" style="color:${rarity.color}">${bname}${item.name} ${item.emoji}</div>
        <div class="result-element">${element.emoji} ${element.name} Element</div>
-       <div class="coins-earned">+${coins.toLocaleString()} 🪙</div>
+       <div class="coins-earned">${coins > 0 ? '+' + coins.toLocaleString() : '💀 +0'} 🪙</div>
        ${multi.length
           ? `<div class="multipliers">${multi.map(m=>`<span class="mult-tag">${m}</span>`).join('')}</div>`
           : ''}
@@ -377,33 +425,162 @@ function setupAuto() {
 
 /* ── floating coin ───────────────────────────────── */
 
-function spawnFloatingCoin(amount, jackpot) {
+function spawnFloatingCoin(amount, jackpot, donResult) {
   const btn  = document.getElementById('roll-btn');
   const rect = btn.getBoundingClientRect();
   const el   = document.createElement('div');
   el.className   = 'floating-coin';
-  el.textContent = (jackpot ? '💥' : '') + '+' + amount.toLocaleString() + '🪙';
+  let label = '';
+  if (donResult === 'zero') label = '💀 +0🪙';
+  else if (donResult === 'double') label = '🎰 x2 +' + amount.toLocaleString() + '🪙';
+  else label = (jackpot ? '💥' : '') + '+' + amount.toLocaleString() + '🪙';
+  el.textContent = label;
   el.style.left  = (rect.left + rect.width / 2 - 40) + 'px';
   el.style.top   = (rect.top - 10) + 'px';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 1300);
 }
 
+function flashScreen(color) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;inset:0;background:${color};opacity:0;pointer-events:none;z-index:900;transition:opacity 0.1s`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = '0.18'; });
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 200);
+}
+
+/* ── milestones ──────────────────────────────────── */
+
+function checkMilestones() {
+  MILESTONES.forEach(m => {
+    if (!G.milestones[m.id] && m.check(G)) {
+      G.milestones[m.id] = true;
+      G.coins         += m.reward;
+      G.lifetimeCoins += m.reward;
+      showMilestoneToast(m);
+    }
+  });
+}
+
+function showMilestoneToast(m) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);
+    background:#1a1a2e;border:2px solid var(--gold);border-radius:14px;
+    padding:12px 24px;text-align:center;z-index:990;color:var(--gold);
+    font-family:'Cinzel Decorative',serif;font-size:13px;
+    box-shadow:0 0 30px rgba(245,200,66,0.4);
+    transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1),opacity 0.4s;
+    opacity:0;
+  `;
+  el.innerHTML = `${m.icon} <strong>MILESTONE!</strong> ${m.label}<br><span style="font-size:11px;color:#aaa;font-family:monospace">+${m.reward.toLocaleString()} 🪙 bonus</span>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.transform = 'translateX(-50%) translateY(0)'; el.style.opacity = '1'; });
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(60px)'; setTimeout(() => el.remove(), 500); }, 3500);
+}
+
+/* ── daily bonus ─────────────────────────────────── */
+
+function checkDailyBonus() {
+  const today = new Date().toDateString();
+  if (G.lastDailyBonus === today) return;
+  G.lastDailyBonus = today;
+  const bonus = 100 + G.totalRolls * 2;
+  G.coins         += bonus;
+  G.lifetimeCoins += bonus;
+  saveGame();
+  showMilestoneToast({ icon: '🌅', label: 'Daily Bonus!', reward: bonus });
+}
+
+/* ── save / load ─────────────────────────────────── */
+
+const SAVE_KEY = 'diceOfFate_save';
+
+function saveGame() {
+  const data = {
+    coins: G.coins, lifetimeCoins: G.lifetimeCoins, totalRolls: G.totalRolls,
+    upgrades: G.upgrades, collection: G.collection, bestRarityIdx: G.bestRarityIdx,
+    streak: G.streak, dryStreak: G.dryStreak, lastDailyBonus: G.lastDailyBonus,
+    soundEnabled: G.soundEnabled, milestones: G.milestones,
+  };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    Object.assign(G, data);
+    G.history = [];
+    G.autoTimer = null;
+  } catch(e) { console.warn('Save load failed', e); }
+}
+
+function resetGame() {
+  if (!confirm('Reset ALL progress? This cannot be undone.')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+function updateMilestonesTab() {
+  const el = document.getElementById('milestones-list');
+  if (!el) return;
+  el.innerHTML = MILESTONES.map(m => {
+    const done   = !!G.milestones[m.id];
+    const active = !done && m.check(G);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);opacity:${done?'0.5':'1'}">
+      <span style="font-size:18px">${m.icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;color:${done?'#4caf50':active?'var(--gold)':'var(--text)'};font-weight:600">${m.label}</div>
+        <div style="font-size:10px;color:var(--muted)">Reward: +${m.reward.toLocaleString()} 🪙</div>
+      </div>
+      <span style="font-size:14px">${done ? '✅' : active ? '🔓' : '🔒'}</span>
+    </div>`;
+  }).join('');
+}
+
 /* ── tabs ────────────────────────────────────────── */
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['rarities','shop','collection'][i] === name);
+    t.classList.toggle('active', ['rarities','shop','collection','milestones'][i] === name);
   });
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'shop')       updateShop();
   if (name === 'collection') updateCollection();
+  if (name === 'milestones') updateMilestonesTab();
 }
 
 /* ── init ────────────────────────────────────────── */
 
+loadGame();
 document.getElementById('dice').addEventListener('click', doRoll);
+document.getElementById('version-badge').textContent = VERSION;
+
+// Sound toggle button
+const soundBtn = document.getElementById('sound-btn');
+if (soundBtn) {
+  soundBtn.textContent = G.soundEnabled ? '🔊' : '🔇';
+  soundBtn.addEventListener('click', () => {
+    G.soundEnabled = !G.soundEnabled;
+    soundBtn.textContent = G.soundEnabled ? '🔊' : '🔇';
+    saveGame();
+  });
+}
+
+// Reset button
+const resetBtn = document.getElementById('reset-btn');
+if (resetBtn) resetBtn.addEventListener('click', resetGame);
+
 updateUI();
 updateShop();
 updateCollection();
+updateMilestonesTab();
+
+// Check daily bonus after short delay so UI is ready
+setTimeout(checkDailyBonus, 800);
+
+// Auto-restore auto-roller if it was purchased
+if (getUpgradeLevel('autoRoll') > 0) setupAuto();

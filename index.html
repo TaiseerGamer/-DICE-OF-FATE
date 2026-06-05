@@ -15,7 +15,11 @@
 
     <div class="header">
       <h1>⚄ DICE OF FATE</h1>
-      <p class="subtitle">Roll. Discover. Ascend. &nbsp;<span id="version-badge" style="font-size:11px;background:rgba(245,200,66,0.15);color:var(--gold);border:1px solid rgba(245,200,66,0.3);border-radius:20px;padding:2px 10px;font-family:monospace;letter-spacing:1px;">v0.0.1</span></p>
+      <p class="subtitle">Roll. Discover. Ascend. &nbsp;<span id="version-badge" style="font-size:11px;background:rgba(245,200,66,0.15);color:var(--gold);border:1px solid rgba(245,200,66,0.3);border-radius:20px;padding:2px 10px;font-family:monospace;letter-spacing:1px;">v0.1.0</span></p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+        <button id="sound-btn" title="Toggle Sound" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 12px;cursor:pointer;font-size:14px;color:var(--text)">🔊</button>
+        <button id="reset-btn" title="Reset Game" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 12px;cursor:pointer;font-size:12px;color:#ff5252;font-family:'Crimson Pro',serif">⚠ Reset</button>
+      </div>
     </div>
 
     <!-- stat bar -->
@@ -91,6 +95,7 @@
         <div class="tab active"  onclick="switchTab('rarities')">Rarities</div>
         <div class="tab"         onclick="switchTab('shop')">Shop</div>
         <div class="tab"         onclick="switchTab('collection')">Codex</div>
+        <div class="tab"         onclick="switchTab('milestones')">Goals</div>
       </div>
 
       <!-- rarities tab -->
@@ -107,6 +112,11 @@
       <div id="tab-collection" class="tab-content">
         <div id="coll-progress">Discovered: 0 / 0</div>
         <div class="collections-grid" id="collection-grid"></div>
+      </div>
+
+      <!-- milestones tab -->
+      <div id="tab-milestones" class="tab-content">
+        <div id="milestones-list"></div>
       </div>
 
     </div>
