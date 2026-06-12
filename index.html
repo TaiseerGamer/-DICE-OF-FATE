@@ -72,6 +72,12 @@
 
       <button class="roll-btn" id="roll-btn" onclick="doRoll()">🎲 ROLL THE DICE</button>
       <div id="auto-info"></div>
+      <div id="pity-indicator" style="display:none;width:100%;max-width:300px">
+        <div class="pity-label" style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:4px"></div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div class="pity-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#ce93d8,#e91e63);border-radius:2px;transition:width 0.3s"></div>
+        </div>
+      </div>
     </div>
 
     <!-- result -->

@@ -1,4 +1,4 @@
-const VERSION = 'v0.1.0';
+const VERSION = 'v0.1.1';
 
 const RARITIES = [
   { id: 'common',       name: 'Common',       color: '#9999aa', chance: 44,   coins: 2,      emoji: '⚪' },
@@ -34,7 +34,7 @@ const ITEMS = [
   { name: 'Old Boot',        emoji: '👢' }, { name: 'Cracked Gem',    emoji: '💎' },
   { name: 'Bone Shard',      emoji: '🦴' }, { name: 'Witch Eye',      emoji: '👁️' },
   { name: 'Dragon Scale',    emoji: '🐉' }, { name: 'Angel Feather',  emoji: '🪶' },
-  { name: 'Chaos Orb',       emoji: '🔮' }, { name: 'Phoenix Ash',    emoji: '🔥' },
+  { name: 'Chaos Orb',       emoji: '🔮' }, { name: 'Phoenix Ash',    emoji: '🌋' },
   { name: 'Star Fragment',   emoji: '⭐' }, { name: 'Void Crystal',   emoji: '🔷' },
   { name: 'Soul Ember',      emoji: '🕯️' }, { name: 'Thunder Core',   emoji: '⚡' },
   { name: 'Frozen Heart',    emoji: '❄️' }, { name: 'Ancient Rune',   emoji: '📜' },
@@ -43,7 +43,7 @@ const ITEMS = [
   { name: 'Infinity Loop',   emoji: '♾️' }, { name: 'Time Crystal',   emoji: '⏳' },
   { name: 'Aether Bloom',    emoji: '🌸' }, { name: 'Gravity Well',   emoji: '🪐' },
   { name: 'Plague Flask',   emoji: '🧪' }, { name: 'Storm Eye',      emoji: '🌩️' },
-  { name: 'Abyss Pearl',    emoji: '🔮' }, { name: 'Runic Tablet',   emoji: '🪨' },
+  { name: 'Abyss Pearl',    emoji: '🫧' }, { name: 'Runic Tablet',   emoji: '🪨' },
   { name: 'Cursed Mirror',  emoji: '🪞' }, { name: 'Shadow Crown',   emoji: '👑' },
 ];
 
@@ -97,8 +97,11 @@ const MILESTONES = [
   { id: 'firstDiv',   label: 'First Divine',     check: g => g.bestRarityIdx >= 6,     reward: 2000,  icon: '💠' },
   { id: 'firstVoid',  label: 'First Void',       check: g => g.bestRarityIdx >= 8,     reward: 10000, icon: '💜' },
   { id: 'firstAbyss', label: 'First Abyssal',    check: g => g.bestRarityIdx >= 9,     reward: 40000, icon: '🌊' },
-  { id: 'codex10',    label: 'Codex: 10 Items',  check: g => Object.keys(g.collection).length >= 10, reward: 200, icon: '📖' },
+  { id: 'codex10',    label: 'Codex: 10 Items',  check: g => Object.keys(g.collection).length >= 10,          reward: 200,   icon: '📖' },
   { id: 'codexAll',   label: 'Codex: All Items', check: g => Object.keys(g.collection).length >= ITEMS.length, reward: 25000, icon: '📖' },
+  { id: 'streak10',   label: '10-Roll Streak',   check: g => g.streak >= 10,   reward: 150,  icon: '🔥' },
+  { id: 'streak50',   label: '50-Roll Streak',   check: g => g.streak >= 50,   reward: 1000, icon: '🔥' },
+  { id: 'streak100',  label: '100-Roll Streak',  check: g => g.streak >= 100,  reward: 5000, icon: '🔥' },
 ];
 
 /* ── helpers ─────────────────────────────────────── */
@@ -243,7 +246,7 @@ function finishRoll() {
 
   if (ri > G.bestRarityIdx) G.bestRarityIdx = ri;
 
-  const key = item.emoji + '|' + rarity.id;
+  const key = item.name + '|' + rarity.id;
   G.collection[key] = (G.collection[key] || 0) + 1;
 
   const h = { rarity, element, item, bonus, coins, isJackpot, donResult };
@@ -306,22 +309,40 @@ function showResult(h) {
 }
 
 function updateUI() {
-  document.getElementById('coins').textContent        = G.coins.toLocaleString();
-  document.getElementById('total-rolls').textContent  = G.totalRolls.toLocaleString();
-  document.getElementById('lifetime-coins').textContent = G.lifetimeCoins.toLocaleString();
+  document.getElementById('coins').textContent           = G.coins.toLocaleString();
+  document.getElementById('total-rolls').textContent     = G.totalRolls.toLocaleString();
+  document.getElementById('lifetime-coins').textContent  = G.lifetimeCoins.toLocaleString();
 
   const br = document.getElementById('best-rarity');
   if (G.bestRarityIdx >= 0) {
     const r = RARITIES[G.bestRarityIdx];
-    br.textContent  = r.name;
-    br.style.color  = r.color;
+    br.textContent = r.name;
+    br.style.color = r.color;
   }
+
+  // Pity indicator
+  const pityEl  = document.getElementById('pity-indicator');
+  const pityLvl = getUpgradeLevel('pity');
+  if (pityEl) {
+    if (pityLvl > 0 && G.dryStreak > 0) {
+      const pct = Math.min((G.dryStreak / 50) * 100, 100);
+      pityEl.style.display = 'block';
+      pityEl.querySelector('.pity-fill').style.width = pct + '%';
+      pityEl.querySelector('.pity-label').textContent =
+        G.dryStreak >= 50
+          ? `⚡ PITY ACTIVE (${G.dryStreak} dry rolls)`
+          : `Pity: ${G.dryStreak} / 50 dry rolls`;
+    } else {
+      pityEl.style.display = 'none';
+    }
+  }
+
   updateRarityTable();
 }
 
 function updateHistory() {
   document.getElementById('history-list').innerHTML =
-    G.history.slice(0, 20).map(h =>
+    G.history.slice(0, 30).map(h =>
       `<span class="hist-item"
              style="color:${h.rarity.color};border-color:${h.rarity.color}40;background:${h.rarity.color}15"
              title="${h.rarity.name} ${h.item.name}">
@@ -380,9 +401,9 @@ function buyUpgrade(id) {
   G.coins -= cost;
   G.upgrades[id] = (G.upgrades[id] || 0) + 1;
   if (id === 'autoRoll') setupAuto();
-  G.streak = 0;
   updateUI();
   updateShop();
+  saveGame();
 }
 
 function updateCollection() {
@@ -393,7 +414,7 @@ function updateCollection() {
   document.getElementById('collection-grid').innerHTML = ITEMS.map(item => {
     let found = false, count = 0, bestColor = '#555';
     RARITIES.forEach(r => {
-      const k = item.emoji + '|' + r.id;
+      const k = item.name + '|' + r.id;
       if (G.collection[k]) { found = true; count += G.collection[k]; bestColor = r.color; }
     });
     return `<div class="coll-item ${found ? '' : 'locked'}"
@@ -452,14 +473,17 @@ function flashScreen(color) {
 /* ── milestones ──────────────────────────────────── */
 
 function checkMilestones() {
+  let anyNew = false;
   MILESTONES.forEach(m => {
     if (!G.milestones[m.id] && m.check(G)) {
       G.milestones[m.id] = true;
       G.coins         += m.reward;
       G.lifetimeCoins += m.reward;
+      anyNew = true;
       showMilestoneToast(m);
     }
   });
+  if (anyNew) updateUI();
 }
 
 function showMilestoneToast(m) {
@@ -558,6 +582,14 @@ function switchTab(name) {
 loadGame();
 document.getElementById('dice').addEventListener('click', doRoll);
 document.getElementById('version-badge').textContent = VERSION;
+
+// Spacebar to roll
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    doRoll();
+  }
+});
 
 // Sound toggle button
 const soundBtn = document.getElementById('sound-btn');
