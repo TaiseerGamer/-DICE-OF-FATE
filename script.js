@@ -1,4 +1,4 @@
-const VERSION = 'v0.1.1';
+const VERSION = 'v0.2.0';
 
 const RARITIES = [
   { id: 'common',       name: 'Common',       color: '#9999aa', chance: 44,   coins: 2,      emoji: '⚪' },
@@ -85,7 +85,18 @@ const G = {
   lastDailyBonus: null,
   soundEnabled: true,
   milestones: {},
+  prestigeLevel: 0,
+  prestigeShards: 0,
+  prestigeUpgrades: {},
 };
+
+const PRESTIGE_REQUIREMENT = 500000; // lifetime coins needed to prestige
+
+const PRESTIGE_UPGRADES = [
+  { id: 'pCoin',  name: 'Eternal Wealth', desc: 'Permanent +15% coins per shard spent', baseCost: 1, costMult: 1.6, color: '#f5c842' },
+  { id: 'pLuck',  name: 'Eternal Fortune',desc: 'Permanent +5% rare+ chance per shard',  baseCost: 1, costMult: 1.8, color: '#9c27b0' },
+  { id: 'pStart', name: 'Head Start',     desc: 'Start each prestige with 1,000 coins',  baseCost: 2, costMult: 2.5, color: '#00bcd4' },
+];
 
 const MILESTONES = [
   { id: 'rolls10',    label: '10 Rolls',         check: g => g.totalRolls >= 10,       reward: 50,    icon: '🎲' },
@@ -102,6 +113,7 @@ const MILESTONES = [
   { id: 'streak10',   label: '10-Roll Streak',   check: g => g.streak >= 10,   reward: 150,  icon: '🔥' },
   { id: 'streak50',   label: '50-Roll Streak',   check: g => g.streak >= 50,   reward: 1000, icon: '🔥' },
   { id: 'streak100',  label: '100-Roll Streak',  check: g => g.streak >= 100,  reward: 5000, icon: '🔥' },
+  { id: 'firstPrestige', label: 'First Prestige', check: g => g.prestigeLevel >= 1, reward: 1000, icon: '♻️' },
 ];
 
 /* ── helpers ─────────────────────────────────────── */
@@ -139,16 +151,30 @@ function getChances() {
     for (let i = 3; i < c.length; i++) c[i].chance *= boost;
   }
 
+  // Prestige: Eternal Fortune boosts rare+ permanently
+  const pLuckLvl = getPrestigeLevel('pLuck');
+  if (pLuckLvl > 0) {
+    for (let i = 2; i < c.length; i++) c[i].chance *= (1 + pLuckLvl * 0.05);
+  }
+
   const total = c.reduce((s, r) => s + r.chance, 0);
   c.forEach(r => r.chance = (r.chance / total) * 100);
   return c;
 }
 
 function getCoinMult() {
-  return 1
+  const base = 1
     + getUpgradeLevel('coinI')  * 0.25
     + getUpgradeLevel('coinII') * 0.5
     + getUpgradeLevel('coinIII')* 1.0;
+  const prestigeMult = 1 + getPrestigeLevel('pCoin') * 0.15;
+  return base * prestigeMult;
+}
+
+function getPrestigeLevel(id) { return G.prestigeUpgrades[id] || 0; }
+
+function getPrestigeUpgradeCost(u) {
+  return Math.round(u.baseCost * Math.pow(u.costMult, getPrestigeLevel(u.id)));
 }
 
 function getStreakBonus() {
@@ -318,6 +344,13 @@ function updateUI() {
     const r = RARITIES[G.bestRarityIdx];
     br.textContent = r.name;
     br.style.color = r.color;
+  }
+
+  const prestigeStat = document.getElementById('prestige-stat');
+  if (prestigeStat) {
+    prestigeStat.style.display = G.prestigeLevel > 0 || G.prestigeShards > 0 ? 'flex' : 'none';
+    const lvlEl = document.getElementById('prestige-level-mini');
+    if (lvlEl) lvlEl.textContent = `P${G.prestigeLevel} · ${G.prestigeShards}💠`;
   }
 
   // Pity indicator
@@ -526,6 +559,7 @@ function saveGame() {
     upgrades: G.upgrades, collection: G.collection, bestRarityIdx: G.bestRarityIdx,
     streak: G.streak, dryStreak: G.dryStreak, lastDailyBonus: G.lastDailyBonus,
     soundEnabled: G.soundEnabled, milestones: G.milestones,
+    prestigeLevel: G.prestigeLevel, prestigeShards: G.prestigeShards, prestigeUpgrades: G.prestigeUpgrades,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e) {}
 }
@@ -545,6 +579,103 @@ function resetGame() {
   if (!confirm('Reset ALL progress? This cannot be undone.')) return;
   localStorage.removeItem(SAVE_KEY);
   location.reload();
+}
+
+/* ── prestige ────────────────────────────────────── */
+
+function canPrestige() {
+  return G.lifetimeCoins >= PRESTIGE_REQUIREMENT;
+}
+
+function shardsForPrestige() {
+  return Math.floor(Math.sqrt(G.lifetimeCoins / PRESTIGE_REQUIREMENT)) || 1;
+}
+
+function doPrestige() {
+  if (!canPrestige()) return;
+  const earned = shardsForPrestige();
+  if (!confirm(`Ascend now? You'll earn ${earned} Prestige Shard${earned>1?'s':''}, but all coins, rolls, and regular upgrades will reset. Your Codex, Milestones, and Prestige Upgrades stay forever.`)) return;
+
+  G.prestigeShards += earned;
+  G.prestigeLevel  += 1;
+
+  // Reset run-specific progress
+  G.coins        = getPrestigeLevel('pStart') > 0 ? 1000 : 0;
+  G.lifetimeCoins= 0;
+  G.totalRolls   = 0;
+  G.upgrades     = {};
+  G.streak       = 0;
+  G.dryStreak    = 0;
+  G.bestRarityIdx= -1;
+  G.history      = [];
+
+  if (G.autoTimer) { clearInterval(G.autoTimer); G.autoTimer = null; }
+
+  saveGame();
+  updateUI();
+  updateShop();
+  updatePrestigeTab();
+  showMilestoneToast({ icon: '♻️', label: `Ascended to Prestige ${G.prestigeLevel}!`, reward: 0 });
+  checkMilestones();
+}
+
+function buyPrestigeUpgrade(id) {
+  const u = PRESTIGE_UPGRADES.find(x => x.id === id);
+  const cost = getPrestigeUpgradeCost(u);
+  if (G.prestigeShards < cost) return;
+  G.prestigeShards -= cost;
+  G.prestigeUpgrades[id] = (G.prestigeUpgrades[id] || 0) + 1;
+  saveGame();
+  updatePrestigeTab();
+  updateUI();
+}
+
+function updatePrestigeTab() {
+  const el = document.getElementById('prestige-content');
+  if (!el) return;
+
+  const ready = canPrestige();
+  const shardsGain = shardsForPrestige();
+  const progressPct = Math.min((G.lifetimeCoins / PRESTIGE_REQUIREMENT) * 100, 100);
+
+  let html = `
+    <div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted)">PRESTIGE LEVEL</div>
+      <div style="font-size:24px;font-weight:700;color:var(--gold);font-family:'Cinzel Decorative',serif">${G.prestigeLevel}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">SHARDS</div>
+      <div style="font-size:18px;font-weight:700;color:#00bcd4">${G.prestigeShards} 💠</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Progress to next Ascension</div>
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,#00bcd4,#f5c842);border-radius:4px"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:right">${G.lifetimeCoins.toLocaleString()} / ${PRESTIGE_REQUIREMENT.toLocaleString()}</div>
+    </div>
+    <button id="prestige-btn" ${ready ? '' : 'disabled'} style="width:100%;padding:10px;border-radius:10px;border:none;font-family:'Cinzel Decorative',serif;font-size:13px;cursor:${ready?'pointer':'not-allowed'};background:${ready?'linear-gradient(135deg,#00bcd4,#1de9b6)':'var(--surface2)'};color:${ready?'#002':'var(--muted)'};margin-bottom:14px">
+      ${ready ? `♻️ ASCEND (+${shardsGain} 💠)` : '🔒 Reach ' + PRESTIGE_REQUIREMENT.toLocaleString() + ' lifetime coins'}
+    </button>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">PERMANENT UPGRADES</div>
+  `;
+
+  html += PRESTIGE_UPGRADES.map(u => {
+    const lvl  = getPrestigeLevel(u.id);
+    const cost = getPrestigeUpgradeCost(u);
+    const afford = G.prestigeShards >= cost;
+    return `<div class="shop-item ${afford?'':'cant-afford'}" onclick="buyPrestigeUpgrade('${u.id}')">
+       <div class="shop-left">
+         <div class="shop-name" style="color:${u.color}">${u.name}</div>
+         <div class="shop-desc">${u.desc}</div>
+         <div class="shop-level">Level ${lvl}</div>
+       </div>
+       <div class="shop-cost">${cost} 💠</div>
+     </div>`;
+  }).join('');
+
+  el.innerHTML = html;
+
+  const btn = document.getElementById('prestige-btn');
+  if (btn && ready) btn.addEventListener('click', doPrestige);
 }
 
 function updateMilestonesTab() {
@@ -568,13 +699,14 @@ function updateMilestonesTab() {
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['rarities','shop','collection','milestones'][i] === name);
+    t.classList.toggle('active', ['rarities','shop','collection','milestones','prestige'][i] === name);
   });
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'shop')       updateShop();
   if (name === 'collection') updateCollection();
   if (name === 'milestones') updateMilestonesTab();
+  if (name === 'prestige')   updatePrestigeTab();
 }
 
 /* ── init ────────────────────────────────────────── */
@@ -610,6 +742,7 @@ updateUI();
 updateShop();
 updateCollection();
 updateMilestonesTab();
+updatePrestigeTab();
 
 // Check daily bonus after short delay so UI is ready
 setTimeout(checkDailyBonus, 800);

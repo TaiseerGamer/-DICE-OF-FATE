@@ -460,8 +460,8 @@ h1 {
 
 .tab {
   flex: 1;
-  padding: 6px;
-  font-size: 11px;
+  padding: 6px 2px;
+  font-size: 10px;
   font-family: 'Cinzel Decorative', serif;
   background: var(--surface2);
   border: 1px solid var(--border);
